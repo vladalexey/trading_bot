@@ -1,0 +1,11 @@
+datetime
+pypfopt
+pandas
+pandas_datareader
+numpy
+tqdm
+matplotlib
+alpaca_trade_api
+json
+os
+sys

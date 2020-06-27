@@ -56,7 +56,7 @@ class PortfolioManager():
                 stock,
                 data_source='yahoo',
                 start=self.stockStartDate , 
-                end=today)['Adj Close']
+                end=today)['Close']
 
     def plotStockPrices(self):
         # Create the title 'Portfolio Adj Close Price History
@@ -131,10 +131,90 @@ class PortfolioManager():
 
         return allocation, leftover
 
+    def calculateEMA(self, signal, stock: str):
+
+        shortEMA = signal[stock].ewm(span=12, adjust=False).mean()
+
+        longEMA = signal[stock].ewm(span=26, adjust=False).mean()
+
+        MACD = shortEMA - longEMA
+        signal = MACD.ewm(span=9, adjust=False).mean()
+
+        plt.figure(figsize=(12.2, 4.5))
+        plt.plot(signal.index, MACD, color='red')
+        plt.plot(signal.index, signal, color='blue')
+        plt.legend(loc='upper left')
+        plt.xticks(rotation=45)
+        plt.show()
+
+        signal[stock + '_MACD'] = MACD
+        signal[stock+ '_signal'] = signal
+
+        return signal
+
+    def trade_signal(self, stock: str):
+
+        signal = self.df[[stock, stock + '_MACD', stock + '_signal']].iloc[-26 * 4:]
+        print(signal)
+
+        signal = self.calculateEMA(signal)
+
+        buy = []
+        sell = []
+        flag = -1
+
+        for i in range(len(signal)):
+
+            if signal[stock + '_MACD'][i] > signal[stock + '_signal'][i] and signal[stock + '_MACD'][i] < 0 and signal[stock + '_signal'][i] < 0:
+                sell.append(np.nan)
+
+                if flag != 1:
+                    buy.append(signal[stock][i])
+                    flag = 1
+                
+                else:
+                    buy.append(np.nan)
+
+            elif signal[stock + '_MACD'][i] < signal[stock + '_signal'][i]  and signal[stock + '_MACD'][i] > 0 and signal[stock + '_signal'][i] > 0:
+                buy.append(np.nan)
+
+                if flag != 0:
+                    sell.append(signal[stock][i])
+                    flag = 0
+                
+                else:
+                    sell.append(np.nan)
+            
+            else:
+                buy.append(np.nan)
+                sell.append(np.nan)
+
+        signal[stock + '_buy'] = buy
+        signal[stock + '_sell'] = sell
+
+        plt.figure(figsize=(12.2, 8.5))
+        plt.scatter(signal.index, signal[stock + '_buy'], color='green', label='Buy', marker='^', alpha=1)
+        plt.scatter(signal.index, signal[stock + '_sell'], color='red', label='Sell', marker='v', alpha=1)
+        plt.plot(signal[stock], label='Close', alpha=0.35)
+        
+        plt.plot(signal[stock + '_signal'] + 100, color='blue', alpha=0.2)
+        plt.plot(signal[stock + '_MACD'] + 100, color='red', alpha=0.5)
+
+        plt.show()
+
+        if buy[-1] != np.nan:
+            return True
+        if sell[-1] != np.nan:
+            return False
+        
+        return None
+
 if __name__ == "__main__":
 
     pm = PortfolioManager()
     pm.setStockPrices()
-    pm.plotStockPrices()
-    pm.optimizePortfolio("volatility")
-    pm.allocateFunding()
+    # pm.plotStockPrices()
+    # pm.optimizePortfolio("volatility")
+    # pm.allocateFunding()
+    pm.calculateEMA('FB')
+    pm.trade_signal('FB')
